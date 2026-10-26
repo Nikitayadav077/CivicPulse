@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CivicPulse - Smart City System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Leaflet Interactive Map CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CivicPulse">
+    <link rel="apple-touch-icon" href="icon-512.png">
+    <meta name="theme-color" content="#1e3a8a">
+
+    <style>
+        body { font-family: 'Poppins', sans-serif; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .city-bg {
+            background: linear-gradient(rgba(15, 23, 42, 0.75), rgba(30, 58, 138, 0.85)), 
+                        url('https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=2070&auto=format&fit=crop') no-repeat center center fixed;
+            background-size: cover;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .pop-animation { animation: pop 0.3s ease-out forwards; }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        /* Custom Map Marker Styling */
+        .state-marker-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            color: white;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.35);
+            border: 2px solid white;
+            transition: transform 0.2s ease;
+            white-space: nowrap;
+            padding: 4px 10px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .state-marker-pin:hover {
+            transform: scale(1.12);
+            z-index: 1000 !important;
+        }
+        .city-marker-pin {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 9999px;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 700;
+            color: white;
+            background: #0f172a;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+            border: 2px solid #38bdf8;
+            white-space: nowrap;
+            padding: 3px 9px;
+            font-size: 10.5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="city-bg flex flex-col min-h-screen text-gray-800">
+    
+    <div id="toast-notification" class="fixed top-6 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-md text-white px-6 py-4 rounded-2xl shadow-2xl z-[100] flex items-center transition-all duration-500 -translate-y-32 opacity-0 w-max max-w-[90vw] border border-gray-700">
+        <i class="fa-solid fa-bell text-yellow-400 mr-3 animate-bounce text-xl"></i>
+        <span id="toast-message" class="text-sm font-semibold tracking-wide">Notification</span>
+    </div>
+
+    <!-- GOV-BOT WIDGET -->
+    <div id="gov-bot-container" class="hidden fixed bottom-6 right-6 z-50 flex-col items-end fade-in">
+        <div id="gov-bot-window" class="hidden w-80 max-w-[85vw] bg-white rounded-2xl shadow-2xl border border-gray-200 mb-4 overflow-hidden flex-col transition-all origin-bottom-right">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-white flex justify-between items-center">
+                <span class="font-bold"><i class="fa-solid fa-robot mr-2"></i>Civic Assistant</span>
+                <button onclick="toggleGovBot()" class="text-white hover:text-gray-200"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="gov-bot-messages" class="p-4 h-64 overflow-y-auto bg-gray-50 flex flex-col gap-3 text-sm">
+                <div class="bg-blue-100 text-blue-800 p-3 rounded-xl rounded-tl-none w-[85%] self-start shadow-sm">Hello! I am your AI Gov-Bot. Ask me about helplines, tracking reports, state hotspots, or Karma points!</div>
+            </div>
+            <div class="p-3 border-t border-gray-200 bg-white flex gap-2">
+                <input type="text" id="gov-bot-input" placeholder="Type a message..." class="flex-1 p-2 bg-gray-100 border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" onkeypress="if(event.key === 'Enter') sendGovBotMessage()">
+                <button onclick="sendGovBotMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-lg flex items-center justify-center hover:bg-blue-700 transition shadow-md"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+        <button onclick="toggleGovBot()" class="w-14 h-14 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full text-white shadow-2xl hover:scale-105 transition flex items-center justify-center text-2xl border-2 border-white/20 ml-auto">
+            <i class="fa-solid fa-message"></i>
+        </button>
+    </div>
+
+    <!-- HEADER -->
+    <div class="bg-blue-900/90 backdrop-blur-md text-white p-5 shadow-lg text-center rounded-b-2xl z-10 relative border-b border-white/10">
+        <button onclick="toggleLang()" class="absolute top-5 right-5 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center border border-white/30 shadow-md">
+            <i class="fa-solid fa-language mr-1"></i> <span id="lang-text">EN/HI</span>
+        </button>
+        <h1 class="text-3xl font-bold tracking-wide"><i class="fa-solid fa-city mr-2"></i>CivicPulse</h1>
+        <p class="text-blue-200 text-sm mt-1 font-light tracking-wider" id="header-subtitle" data-i18n="subtitle">Hyperlocal Civic Tech</p>
+    </div>
+
+    <!-- VIEW 1: LANDING PAGE -->
+    <div id="landing-view" class="flex-1 flex flex-col items-center justify-center p-6 space-y-5 fade-in">
+        <div class="mb-8 text-center text-white">
+            <div class="inline-block p-4 bg-white/10 rounded-full backdrop-blur-sm border border-white/20 mb-4 shadow-xl">
+                <i class="fa-solid fa-map-location-dot text-6xl drop-shadow-md"></i>
+            </div>
+            <h2 class="text-3xl font-bold drop-shadow-lg tracking-wide" data-i18n="empower">Empower Your City</h2>
+            <p class="text-blue-100 mt-2 font-medium drop-shadow" data-i18n="onetap">One tap to fix your neighborhood.</p>
+        </div>
+        
+        <button onclick="switchView('register-view')" class="w-full max-w-md bg-gradient-to-r from-blue-500 to-blue-600 text-white font-bold py-4 rounded-xl shadow-[0_10px_20px_rgba(37,99,235,0.3)] hover:shadow-[0_15px_25px_rgba(37,99,235,0.4)] transform hover:-translate-y-1 transition-all border border-blue-400" data-i18n="reg_btn"><i class="fa-solid fa-user-plus mr-2"></i> New Registration</button>
+        <button onclick="switchView('user-login-view')" class="w-full max-w-md bg-white/95 text-blue-700 font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all" data-i18n="login_btn"><i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Citizen Login</button>
+        
+        <div class="w-full max-w-md border-b border-white/20 my-4"></div>
+        <button onclick="switchView('admin-login-view')" class="w-full max-w-md bg-gray-900/90 backdrop-blur-sm text-white font-bold py-4 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all border border-gray-700" data-i18n="admin_btn"><i class="fa-solid fa-shield-halved mr-2"></i> Admin Dispatch Portal</button>
+    </div>
+
+    <!-- VIEW 2: REGISTRATION FORM -->
+    <div id="register-view" class="hidden flex-1 flex-col items-center justify-center p-6 fade-in">
+        <div class="w-full max-w-md glass-panel p-6 rounded-2xl relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+            <h2 class="text-xl font-bold mb-4 text-gray-800 text-center" data-i18n="reg_title">Citizen Registration</h2>
+            <input type="text" id="reg-name" data-i18n="pl_name" placeholder="Full Name" class="w-full mb-3 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            <input type="tel" id="reg-mobile" data-i18n="pl_mobile" placeholder="Mobile Number" class="w-full mb-3 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            <input type="email" id="reg-email" data-i18n="pl_email" placeholder="Email Address" class="w-full mb-3 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            <input type="date" id="reg-dob" class="w-full mb-3 p-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+            <textarea id="reg-address" data-i18n="pl_address" placeholder="Home Address (City, State)" class="w-full mb-4 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"></textarea>
+            <button id="reg-btn" onclick="registerUser()" class="w-full bg-blue-600 text-white font-bold py-3 mt-2 rounded-xl shadow-md hover:bg-blue-700 transition" data-i18n="btn_register_submit"><i class="fa-solid fa-check mr-2"></i> Register</button>
+            <button onclick="switchView('landing-view')" class="w-full text-gray-500 font-semibold py-3 mt-2 hover:text-gray-800 transition" data-i18n="btn_cancel">Cancel</button>
+        </div>
+    </div>
+
+    <!-- VIEW 3: USER LOGIN -->
+    <div id="user-login-view" class="hidden flex-1 flex-col items-center justify-center p-6 fade-in">
+        <div class="w-full max-w-md glass-panel p-8 rounded-2xl text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-blue-500"></div>
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                <i class="fa-solid fa-mobile-screen"></i>
+            </div>
+            <h2 class="text-2xl font-bold mb-2 text-gray-800" data-i18n="login_title">Welcome Back</h2>
+            <p class="text-sm text-gray-500 mb-6" data-i18n="login_sub">Enter your registered mobile number.</p>
+            <input type="tel" id="login-mobile" data-i18n="pl_mobile" placeholder="Mobile Number" class="w-full p-4 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none mb-6 font-semibold tracking-wide text-center">
+            <button id="login-btn" onclick="loginUser()" class="w-full bg-blue-600 text-white font-bold py-4 rounded-xl shadow-md hover:bg-blue-700 transition text-lg" data-i18n="btn_login_submit">Login</button>
+            <button onclick="switchView('landing-view')" class="w-full text-gray-500 font-semibold py-3 mt-3 hover:text-gray-800 transition" data-i18n="btn_back_home">Back to Home</button>
+        </div>
+    </div>
+
+    <!-- VIEW 4: CITIZEN HUB -->
+    <div id="citizen-hub-view" class="hidden flex-1 flex-col items-center justify-center p-6 fade-in">
+        <div class="w-full max-w-md glass-panel p-6 rounded-2xl mb-4 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-green-500"></div>
+            
+            <div class="flex justify-between items-start mb-6 border-b border-gray-200 pb-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-1" id="welcome-text" data-i18n="hub_hello">Hello, Citizen</h2>
+                    <div class="flex items-center mt-1">
+                        <span class="bg-gradient-to-r from-yellow-100 to-yellow-50 text-yellow-800 text-xs font-bold px-3 py-1.5 rounded-full border border-yellow-300 shadow-sm flex items-center">
+                            <i class="fa-solid fa-star text-yellow-500 mr-1"></i> 
+                            <span id="karma-points">10</span> &nbsp;Karma &nbsp;|&nbsp; Lvl <span id="karma-level">1</span>
+                        </span>
+                    </div>
+                </div>
+                <button onclick="switchView('landing-view')" class="text-gray-400 hover:text-red-500 transition text-xl p-2"><i class="fa-solid fa-power-off"></i></button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <button onclick="openCamera()" class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 p-5 rounded-xl flex flex-col items-center justify-center transition shadow-sm h-32">
+                    <div class="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center mb-2 shadow-md">
+                        <i class="fa-solid fa-camera text-lg"></i>
+                    </div>
+                    <span class="font-bold text-sm text-center" data-i18n="hub_report">Report Hazard</span>
+                </button>
+                <button onclick="openTimeline()" class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 p-5 rounded-xl flex flex-col items-center justify-center transition shadow-sm h-32">
+                    <div class="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center mb-2 shadow-md">
+                        <i class="fa-solid fa-list-check text-lg"></i>
+                    </div>
+                    <span class="font-bold text-sm text-center" data-i18n="hub_track">Track Status</span>
+                </button>
+            </div>
+
+            <button onclick="openCommunityFeed()" class="w-full bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 border border-purple-200 text-purple-800 p-4 rounded-xl flex items-center justify-between transition shadow-sm mb-2">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-purple-600 text-white rounded-full flex items-center justify-center mr-3 shadow-md">
+                        <i class="fa-solid fa-users text-lg"></i>
+                    </div>
+                    <div class="text-left">
+                        <span class="font-bold text-sm block" data-i18n="hub_community">Community Board</span>
+                        <span class="text-xs text-purple-600" data-i18n="hub_community_sub">See & Upvote local issues</span>
+                    </div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-purple-300"></i>
+            </button>
+
+            <!-- LIVE CAMPAIGN BLOCK (MINIMAL BANNER) -->
+            <button id="citizen-campaign-block" onclick="switchView('campaign-details-view')" class="hidden mt-2 mb-4 w-full bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 border border-green-200 text-green-800 p-4 rounded-xl flex items-center justify-between transition shadow-sm relative overflow-hidden text-left">
+                <div class="absolute top-0 right-0 bg-green-500 text-white text-[9px] font-bold px-3 py-1 rounded-bl-lg tracking-wider shadow-sm" data-i18n="camp_badge">LIVE EVENT</div>
+                <div class="flex items-center">
+                    <div class="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center mr-3 shadow-md">
+                        <i class="fa-solid fa-bullhorn text-lg"></i>
+                    </div>
+                    <div class="text-left">
+                        <span class="font-bold text-sm block">Live Campaign</span>
+                        <span class="text-xs text-green-600">Tap to see details & participate</span>
+                    </div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-green-300"></i>
+            </button>
+
+            <!-- SOS Bar -->
+            <div class="mt-4 w-full border-t border-gray-200 pt-5">
+                <p class="text-[10px] text-red-500 font-bold uppercase tracking-widest mb-3 text-center flex justify-center items-center" data-i18n="sos_title"><i class="fa-solid fa-circle-exclamation mr-1 animate-pulse"></i> SOS Quick-Dial</p>
+                <div class="flex justify-between gap-2">
+                    <a href="tel:112" class="flex-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 py-3 rounded-xl flex flex-col items-center transition shadow-sm">
+                        <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-1"><i class="fa-solid fa-shield-halved"></i></div>
+                        <span class="text-[9px] font-bold" data-i18n="sos_police">POLICE</span>
+                    </a>
+                    <a href="tel:101" class="flex-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 py-3 rounded-xl flex flex-col items-center transition shadow-sm">
+                        <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-1"><i class="fa-solid fa-fire"></i></div>
+                        <span class="text-[9px] font-bold" data-i18n="sos_fire">FIRE</span>
+                    </a>
+                    <a href="tel:102" class="flex-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 py-3 rounded-xl flex flex-col items-center transition shadow-sm">
+                        <div class="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-1"><i class="fa-solid fa-truck-medical"></i></div>
+                        <span class="text-[9px] font-bold" data-i18n="sos_medic">MEDIC</span>
+                    </a>
+                    <a href="tel:155304" class="flex-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 py-3 rounded-xl flex flex-col items-center transition shadow-sm">
+                        <div class="w-8 h-8 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center mb-1"><i class="fa-solid fa-building-flag"></i></div>
+                        <span class="text-[9px] font-bold" data-i18n="sos_civic">CIVIC</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: CAMPAIGN DETAILS -->
+    <div id="campaign-details-view" class="hidden flex-1 flex-col p-4 md:p-6 fade-in max-w-4xl mx-auto w-full bg-gray-50 min-h-screen rounded-t-3xl mt-4 shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fa-solid fa-bullhorn text-green-600 mr-2"></i><span>Live Campaign</span></h2>
+            <button onclick="switchView('citizen-hub-view')" class="text-green-600 font-bold px-4 py-2 bg-green-100 rounded-lg hover:bg-green-200 transition" data-i18n="btn_back_home">Back</button>
+        </div>
+        
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div id="camp-details-img-container" class="w-full h-48 sm:h-64 bg-green-100 hidden relative">
+                <img id="camp-details-img" src="" class="w-full h-full object-cover">
+            </div>
+            <div class="p-6">
+                <div class="inline-block bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full mb-3 border border-green-200">ACTIVE EVENT</div>
+                <h3 id="camp-details-title" class="text-xl md:text-2xl font-bold text-gray-800 mb-3"></h3>
+                <p id="camp-details-desc" class="text-gray-600 text-sm md:text-base whitespace-pre-wrap leading-relaxed"></p>
+                <div class="mt-6 pt-6 border-t border-gray-100 flex justify-center">
+                    <button onclick="showToast('You are registered for this civic campaign!')" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition transform hover:-translate-y-1"><i class="fa-solid fa-hands-holding-circle mr-2"></i> Count Me In</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VIEW: COMMUNITY FEED -->
+    <div id="community-feed-view" class="hidden flex-1 flex-col p-4 md:p-6 fade-in max-w-4xl mx-auto w-full bg-gray-50 min-h-screen rounded-t-3xl mt-4 shadow-2xl">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fa-solid fa-users text-purple-600 mr-2"></i><span data-i18n="hub_community">Local Feed</span></h2>
+            <button onclick="switchView('citizen-hub-view')" class="text-purple-600 font-bold px-4 py-2 bg-purple-100 rounded-lg hover:bg-purple-200 transition text-sm" data-i18n="btn_back_home">Back</button>
+        </div>
+        <div id="community-container" class="space-y-4 pb-10"></div>
+    </div>
+
+    <!-- VIEW: CITIZEN RESOLUTION TIMELINE -->
+    <div id="citizen-timeline-view" class="hidden flex-1 flex-col p-4 md:p-6 fade-in max-w-4xl mx-auto w-full bg-gray-50 min-h-screen rounded-t-3xl mt-4 shadow-2xl">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-800"><i class="fa-solid fa-clock-rotate-left text-blue-600 mr-2"></i><span data-i18n="hub_track">My Reports</span></h2>
+            <button onclick="switchView('citizen-hub-view')" class="text-blue-600 font-bold px-4 py-2 bg-blue-100 rounded-lg hover:bg-blue-200 transition" data-i18n="btn_back_home">Back</button>
+        </div>
+        <div id="timeline-container" class="space-y-4 pb-10"></div>
+    </div>
+
+    <!-- VIEW: ADMIN LOGIN -->
+    <div id="admin-login-view" class="hidden flex-1 flex-col items-center justify-center p-6 fade-in">
+        <div class="w-full max-w-md glass-panel p-8 rounded-2xl text-center relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-gray-800"></div>
+            <div class="w-16 h-16 bg-gray-800 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-lg"><i class="fa-solid fa-lock"></i></div>
+            <h2 class="text-2xl font-bold mb-6 text-gray-800">Admin Dispatch</h2>
+            <input type="password" id="admin-pin" placeholder="Enter Admin PIN" class="w-full p-4 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-gray-800 outline-none mb-6 text-center tracking-[0.5em] font-bold text-lg">
+            <button onclick="loginAdmin()" class="w-full bg-gray-800 text-white font-bold py-4 rounded-xl shadow-md hover:bg-gray-900 transition text-lg">Access Dashboard</button>
+            <button onclick="switchView('landing-view')" class="w-full text-gray-500 font-semibold py-3 mt-3 hover:text-gray-800 transition" data-i18n="btn_back_home">Back to Home</button>
+        </div>
+    </div>
+
+    <!-- VIEW: CAMERA REPORTER -->
+    <div id="camera-view" class="hidden flex-1 flex-col relative bg-black fade-in">
+        <video id="video" class="flex-1 object-cover w-full h-full" autoplay playsinline></video>
+        <div class="absolute top-6 w-full text-center">
+            <span class="bg-black/70 backdrop-blur-md text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg"><i class="fa-solid fa-camera mr-2"></i>Point at the civic hazard</span>
+        </div>
+        <div class="absolute bottom-10 w-full flex justify-center items-center">
+            <button id="capture-btn" class="w-20 h-20 bg-white/30 rounded-full flex items-center justify-center p-1 cursor-pointer active:scale-95 transition-transform">
+                <div class="w-full h-full bg-white rounded-full shadow-lg"></div>
+            </button>
+        </div>
+        <button onclick="switchView('citizen-hub-view')" class="absolute top-6 left-4 text-white drop-shadow-md text-2xl"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- VIEW: PHOTO PREVIEW (WITH STATE & CITY TAGGER) -->
+    <div id="preview-view" class="hidden flex-1 flex-col p-4 bg-gray-50 fade-in overflow-y-auto">
+        <div class="max-w-lg mx-auto w-full">
+            <div class="bg-white p-2 rounded-2xl shadow-md mb-4 border border-gray-100">
+                <img id="photo-preview" class="w-full h-48 object-cover rounded-xl" />
+            </div>
+            
+            <div class="mb-4">
+                <label id="ai-category-label" class="block text-sm font-bold text-gray-700 mb-1"><i class="fa-solid fa-microchip text-indigo-500 mr-1"></i> Issue Category (Auto-Detected by AI)</label>
+                <select id="hazard-category" class="w-full p-4 border border-gray-300 rounded-xl shadow-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white font-medium text-lg disabled:opacity-50 transition-all">
+                    <option value="Road Damage">🛣️ Road Damage & Potholes</option>
+                    <option value="Electrical Danger">⚡ Broken Streetlight / Electrical</option>
+                    <option value="Water Leak">💧 Broken Pipe / Flooding</option>
+                    <option value="Sanitation">🗑️ Illegal Dumping / Sanitation</option>
+                    <option value="Other">⚠️ Other Hazard</option>
+                </select>
+            </div>
+
+            <!-- STATE & CITY AUTO-DETECTION / SELECTOR -->
+            <div class="mb-4 bg-white p-4 rounded-xl border border-blue-200 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs font-bold text-blue-900 uppercase tracking-wider"><i class="fa-solid fa-map-location-dot text-blue-600 mr-1"></i> State & City Location</label>
+                    <span id="gps-detect-badge" class="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200">Detecting GPS...</span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-500 mb-1">State</label>
+                        <select id="hazard-state" onchange="populateCityOptions(this.value)" class="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] font-semibold text-gray-500 mb-1">City / District</label>
+                        <input type="text" id="hazard-city" list="city-datalist" placeholder="Select or type city..." class="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 text-sm font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <datalist id="city-datalist"></datalist>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <textarea id="hazard-description" placeholder="Add specific details for city crews..." class="w-full p-4 border border-gray-200 rounded-xl shadow-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" rows="2"></textarea>
+            </div>
+            
+            <button id="submit-btn" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-4 rounded-xl mb-3 shadow-lg hover:shadow-xl transition-all text-lg"><i class="fa-solid fa-paper-plane mr-2"></i> Submit to City DB</button>
+            <button id="retake-btn" class="w-full bg-white text-red-500 border border-red-100 font-bold py-4 rounded-xl hover:bg-red-50 transition">Retake Photo</button>
+        </div>
+    </div>
+    <canvas id="canvas" class="hidden"></canvas>
+
+    <!-- VIEW 9: ADMIN DISPATCH DASHBOARD -->
+    <div id="admin-dashboard-view" class="hidden flex-1 flex-col p-4 md:p-6 bg-gray-50 fade-in min-h-screen">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 gap-4">
+            <div class="flex items-center w-full md:w-auto justify-between">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center"><i class="fa-solid fa-truck-fast text-blue-600 mr-2"></i> Admin Panel</h2>
+                
+                <div class="hidden md:flex ml-6 bg-gray-100 p-1 rounded-lg">
+                    <button id="tab-desktop-dispatch" onclick="toggleAdminView('dispatch')" class="px-4 py-1.5 rounded-md bg-white shadow-sm text-sm font-bold text-blue-600 transition-all">Dispatch Queue</button>
+                    <button id="tab-desktop-map" onclick="toggleAdminView('map')" class="px-4 py-1.5 rounded-md text-sm font-bold text-gray-500 hover:text-gray-800 transition-all"><i class="fa-solid fa-map-location-dot text-indigo-600 mr-1"></i> India Map</button>
+                    <button id="tab-desktop-campaign" onclick="toggleAdminView('campaign')" class="px-4 py-1.5 rounded-md text-sm font-bold text-gray-500 hover:text-gray-800 transition-all"><i class="fa-solid fa-bullhorn mr-1"></i> Broadcast</button>
+                    <button id="tab-desktop-users" onclick="toggleAdminView('users')" class="px-4 py-1.5 rounded-md text-sm font-bold text-gray-500 hover:text-gray-800 transition-all">Citizen DB</button>
+                </div>
+            </div>
+            
+            <div class="flex space-x-3 w-full md:w-auto justify-end">
+                <button onclick="refreshActiveAdminTab()" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-4 py-2 rounded-lg font-bold text-sm transition flex-1 md:flex-none text-center"><i class="fa-solid fa-arrows-rotate mr-1 md:mr-2"></i> <span class="hidden md:inline">Refresh</span></button>
+                <button onclick="switchView('landing-view');" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg font-bold text-sm transition"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-4 md:hidden bg-gray-100 p-1 rounded-lg mb-6 w-full gap-1">
+            <button id="tab-mobile-dispatch" onclick="toggleAdminView('dispatch')" class="px-2 py-2 rounded-md bg-white shadow-sm text-xs font-bold text-blue-600 transition-all">Queue</button>
+            <button id="tab-mobile-map" onclick="toggleAdminView('map')" class="px-2 py-2 rounded-md text-xs font-bold text-gray-500 transition-all"><i class="fa-solid fa-map-location-dot mr-1"></i>Map</button>
+            <button id="tab-mobile-campaign" onclick="toggleAdminView('campaign')" class="px-2 py-2 rounded-md text-xs font-bold text-gray-500 transition-all">Events</button>
+            <button id="tab-mobile-users" onclick="toggleAdminView('users')" class="px-2 py-2 rounded-md text-xs font-bold text-gray-500 transition-all">Users</button>
+        </div>
+
+        <!-- Admin Stats Scoreboard -->
+        <div id="admin-stats-container" class="grid grid-cols-3 gap-2 md:gap-4 mb-6"></div>
+        
+        <div id="dashboard-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-10"></div>
+        <div id="users-grid" class="hidden grid-cols-1 md:grid-cols-2 gap-6 pb-10"></div>
+
+        <!-- NEW ADMIN VIEW: ZOOMABLE STREET MAP OF INDIA + AI STATE ANALYZER -->
+        <div id="map-admin-view" class="hidden flex-col gap-6 pb-12">
+            <!-- Top Banner -->
+            <div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-5 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h3 class="text-xl font-bold flex items-center"><i class="fa-solid fa-earth-asia text-yellow-400 mr-2"></i> National India Map & AI State Command Center</h3>
+                    <p class="text-xs text-blue-200 mt-1">Click on any state (e.g., Maharashtra, Delhi) on the map or list to zoom into its cities and run AI hotspot triage.</p>
+                </div>
+                <button onclick="resetIndiaMapSelection()" class="bg-white/15 hover:bg-white/25 text-white border border-white/20 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center">
+                    <i class="fa-solid fa-expand mr-2"></i> Reset to All-India Map
+                </button>
+            </div>
+
+            <!-- AI Regional Triage & Hotspot Insight Box -->
+            <div class="bg-gradient-to-r from-indigo-50 via-blue-50 to-purple-50 border border-indigo-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <div class="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-lg shadow-md flex-shrink-0 mt-0.5">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] font-bold uppercase tracking-widest bg-indigo-600 text-white px-2 py-0.5 rounded">AI Geo-Intelligence</span>
+                            <span id="ai-map-region-tag" class="text-xs font-bold text-indigo-900">All India Telemetry</span>
+                        </div>
+                        <p id="ai-map-summary-text" class="text-xs md:text-sm text-gray-700 mt-1 font-medium">Analyzing state-level and city-level civic hazard distribution across India...</p>
+                    </div>
+                </div>
+                <button onclick="runAIMapDeepAnalysis()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm transition whitespace-nowrap self-end md:self-center">
+                    <i class="fa-solid fa-microchip mr-1.5"></i> AI Action Plan
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left Column: Real Zoomable Street Map of India (Works on file:// and https://) -->
+                <div class="lg:col-span-7 bg-white p-3 rounded-2xl shadow-md border border-gray-200 flex flex-col">
+                    <div class="flex justify-between items-center px-2 py-2 mb-2 border-b border-gray-100">
+                        <span class="text-xs font-bold text-gray-700 uppercase tracking-wider"><i class="fa-solid fa-map-pin text-red-500 mr-1"></i> Interactive India Map</span>
+                        <span id="map-active-view-badge" class="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded-full border border-blue-200">Showing: All India States</span>
+                    </div>
+                    <div id="india-leaflet-map" class="w-full h-[430px] md:h-[500px] rounded-xl z-0 border border-gray-200"></div>
+                </div>
+
+                <!-- Right Column: States List & City Breakdown -->
+                <div class="lg:col-span-5 flex flex-col gap-4">
+                    <!-- States Overview -->
+                    <div class="bg-white p-5 rounded-2xl shadow-md border border-gray-100 flex-1 flex flex-col">
+                        <div class="flex justify-between items-center mb-3 pb-2 border-b border-gray-100">
+                            <h4 class="font-bold text-gray-800 text-base"><i class="fa-solid fa-flag text-blue-600 mr-2"></i>States of India</h4>
+                            <span class="text-[11px] text-gray-400 font-semibold">Click state to see cities</span>
+                        </div>
+                        <div id="states-list-container" class="space-y-2 max-h-52 overflow-y-auto pr-1"></div>
+                    </div>
+
+                    <!-- City Breakdown Card (Shows cities when a state like Maharashtra is clicked) -->
+                    <div id="state-city-drilldown-card" class="bg-white p-5 rounded-2xl shadow-md border-2 border-blue-600 flex-1 flex flex-col">
+                        <div class="flex justify-between items-center mb-2 pb-2 border-b border-gray-100">
+                            <div>
+                                <span class="text-[10px] font-bold uppercase tracking-widest text-blue-600 block">Selected State Drill-Down</span>
+                                <h4 id="selected-state-heading" class="font-bold text-gray-900 text-lg">Select a State</h4>
+                            </div>
+                            <span id="selected-state-total-badge" class="bg-blue-100 text-blue-800 font-bold text-xs px-3 py-1 rounded-full">0 Reports</span>
+                        </div>
+                        <p id="selected-state-helper" class="text-xs text-gray-500 mb-3">Click on any state (like Maharashtra) to see which city the problems came from.</p>
+                        <div id="cities-breakdown-container" class="space-y-2.5 max-h-56 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtered Hazard Cards Below Map -->
+            <div class="bg-white p-5 rounded-2xl shadow-md border border-gray-100">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 pb-3 border-b border-gray-100 gap-2">
+                    <div>
+                        <h4 id="map-filtered-reports-title" class="font-bold text-gray-800 text-lg"><i class="fa-solid fa-layer-group text-blue-600 mr-2"></i>Regional Hazard Tickets (All India)</h4>
+                        <p id="map-filtered-reports-subtitle" class="text-xs text-gray-500">Showing all geotagged reports across Indian states and cities.</p>
+                    </div>
+                    <button id="clear-city-filter-btn" onclick="resetIndiaMapSelection()" class="hidden text-xs font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition">
+                        <i class="fa-solid fa-xmark mr-1"></i> Reset Filter
+                    </button>
+                </div>
+                <div id="map-filtered-reports-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+            </div>
+        </div>
+        
+        <!-- ADMIN VIEW: CAMPAIGN BROADCAST -->
+        <div id="campaign-admin-view" class="hidden flex-col gap-4 pb-10 max-w-2xl mx-auto w-full">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-800 mb-4" data-i18n="camp_broadcast"><i class="fa-solid fa-bullhorn text-green-500 mr-2"></i> Broadcast New Campaign</h3>
+                <p class="text-sm text-gray-500 mb-4">Push an event or awareness drive directly to the dashboards of all registered citizens.</p>
+                
+                <input type="text" id="admin-camp-title" placeholder="Campaign Title (e.g. Sunday Cleanliness Drive)" class="w-full mb-3 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500">
+                <textarea id="admin-camp-desc" placeholder="Message to citizens..." class="w-full mb-4 p-3 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500" rows="3"></textarea>
+                
+                <div class="mb-5">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Upload Campaign Photo (Optional)</label>
+                    <input type="file" id="admin-camp-photo" accept="image/*" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 transition cursor-pointer border border-dashed border-gray-300 p-2 rounded-xl">
+                </div>
+                
+                <button onclick="publishCampaign()" id="publish-btn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition shadow-md" data-i18n="camp_btn"><i class="fa-solid fa-paper-plane mr-2"></i> Publish to All Citizens</button>
+                <button onclick="clearCampaign()" class="w-full bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 mt-2 rounded-xl transition"><i class="fa-solid fa-trash mr-2"></i> Stop Current Campaign</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- ALL-INDIA STATES & CITIES DIRECTORY ---
+        const INDIA_STATES_DATA = {
+            "Maharashtra": { lat: 19.7515, lon: 75.7139, cities: { "Mumbai": [19.0760, 72.8777], "Pune": [18.5204, 73.8567], "Nagpur": [21.1458, 79.0882], "Nashik": [19.9975, 73.7898], "Thane": [19.2183, 72.9781], "Aurangabad": [19.8762, 75.3433] } },
+            "Delhi": { lat: 28.6139, lon: 77.2090, cities: { "New Delhi": [28.6139, 77.2090], "Dwarka": [28.5823, 77.0500], "Rohini": [28.7383, 77.0822], "Saket": [28.5246, 77.2066], "Janakpuri": [28.6219, 77.0878] } },
+            "Karnataka": { lat: 15.3173, lon: 75.7139, cities: { "Bengaluru": [12.9716, 77.5946], "Mysuru": [12.2958, 76.6394], "Mangaluru": [12.9141, 74.8560], "Hubballi": [15.3647, 75.1240] } },
+            "Uttar Pradesh": { lat: 26.8467, lon: 80.9462, cities: { "Lucknow": [26.8467, 80.9462], "Noida": [28.5355, 77.3910], "Kanpur": [26.4499, 80.3319], "Varanasi": [25.3176, 82.9739], "Agra": [27.1767, 78.0081], "Ghaziabad": [28.6692, 77.4538] } },
+            "Tamil Nadu": { lat: 11.1271, lon: 78.6569, cities: { "Chennai": [13.0827, 80.2707], "Coimbatore": [11.0168, 76.9558], "Madurai": [9.9252, 78.1198], "Salem": [11.6643, 78.1460] } },
+            "Gujarat": { lat: 22.2587, lon: 71.1924, cities: { "Ahmedabad": [23.0225, 72.5714], "Surat": [21.1702, 72.8311], "Vadodara": [22.3072, 73.1812], "Rajkot": [22.3039, 70.8022] } },
+            "Rajasthan": { lat: 27.0238, lon: 74.2179, cities: { "Jaipur": [26.9124, 75.7873], "Udaipur": [24.5854, 73.7125], "Jodhpur": [26.2389, 73.0243], "Kota": [25.2138, 75.8648] } },
+            "West Bengal": { lat: 22.9868, lon: 87.8550, cities: { "Kolkata": [22.5726, 88.3639], "Howrah": [22.5958, 88.2636], "Siliguri": [26.7271, 88.3953], "Durgapur": [23.5204, 87.3119] } },
+            "Telangana": { lat: 18.1124, lon: 79.0193, cities: { "Hyderabad": [17.3850, 78.4867], "Warangal": [17.9689, 79.5941], "Nizamabad": [18.6725, 78.0941] } },
+            "Madhya Pradesh": { lat: 22.9734, lon: 78.6569, cities: { "Bhopal": [23.2599, 77.4126], "Indore": [22.7196, 75.8577], "Gwalior": [26.2183, 78.1828], "Jabalpur": [23.1815, 79.9864] } },
+            "Bihar": { lat: 25.0961, lon: 85.3131, cities: { "Patna": [25.5941, 85.1376], "Gaya": [24.7914, 85.0002], "Muzaffarpur": [26.1197, 85.3910] } },
+            "Punjab": { lat: 31.1471, lon: 75.3412, cities: { "Ludhiana": [30.9010, 75.8573], "Amritsar": [31.6340, 74.8723], "Jalandhar": [31.3260, 75.5762], "Chandigarh": [30.7333, 76.7794] } },
+            "Haryana": { lat: 29.0588, lon: 76.0856, cities: { "Gurugram": [28.4595, 77.0266], "Faridabad": [28.4089, 77.3178], "Panipat": [29.3909, 76.9635] } },
+            "Kerala": { lat: 10.8505, lon: 76.2711, cities: { "Kochi": [9.9312, 76.2673], "Thiruvananthapuram": [8.5241, 76.9366], "Kozhikode": [11.2588, 75.7804] } },
+            "Assam": { lat: 26.2006, lon: 92.9376, cities: { "Guwahati": [26.1445, 91.7362], "Silchar": [24.8333, 92.7789], "Dibrugarh": [27.4728, 94.9120] } },
+            "Odisha": { lat: 20.9517, lon: 85.0985, cities: { "Bhubaneswar": [20.2961, 85.8245], "Cuttack": [20.4625, 85.8830], "Rourkela": [22.2604, 84.8536] } },
+            "Jharkhand": { lat: 23.6102, lon: 85.2799, cities: { "Ranchi": [23.3441, 85.3096], "Jamshedpur": [22.8046, 86.2029], "Dhanbad": [23.7957, 86.4304] } },
+            "Chhattisgarh": { lat: 21.2787, lon: 81.8661, cities: { "Raipur": [21.2514, 81.6296], "Bhilai": [21.1938, 81.3509], "Bilaspur": [22.0797, 82.1409] } },
+            "Uttarakhand": { lat: 30.0668, lon: 79.0193, cities: { "Dehradun": [30.3165, 78.0322], "Haridwar": [29.9457, 78.1642], "Nainital": [29.3919, 79.4542] } },
+            "Himachal Pradesh": { lat: 31.1048, lon: 77.1734, cities: { "Shimla": [31.1048, 77.1734], "Manali": [32.2432, 77.1892], "Dharamshala": [32.2190, 76.3234] } },
+            "Goa": { lat: 15.2993, lon: 74.1240, cities: { "Panaji": [15.4909, 73.8278], "Margao": [15.2832, 73.9862] } },
+            "Andhra Pradesh": { lat: 15.9129, lon: 79.7400, cities: { "Visakhapatnam": [17.6868, 83.2185], "Vijayawada": [16.5062, 80.6480], "Tirupati": [13.6288, 79.4192] } }
+        };
+
+        function initStateCitySelectors() {
+            const stateSelect = document.getElementById('hazard-state');
+            if(!stateSelect) return;
+            stateSelect.innerHTML = '';
+            Object.keys(INDIA_STATES_DATA).sort().forEach(st => {
+                const opt = document.createElement('option');
+                opt.value = st;
+                opt.innerText = st;
+                if(st === 'Maharashtra') opt.selected = true;
+                stateSelect.appendChild(opt);
+            });
+            populateCityOptions('Maharashtra');
+        }
+
+        function populateCityOptions(stateName, defaultCity = '') {
+            const dataList = document.getElementById('city-datalist');
+            const cityInput = document.getElementById('hazard-city');
+            if(!dataList || !cityInput) return;
+            dataList.innerHTML = '';
+            const stateObj = INDIA_STATES_DATA[stateName];
+            if(stateObj && stateObj.cities) {
+                const cityNames = Object.keys(stateObj.cities);
+                cityNames.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c;
+                    dataList.appendChild(opt);
+                });
+                cityInput.value = defaultCity || cityNames[0] || '';
+            }
+        }
+
+        function resolveReportLocation(report) {
+            if (report.state && report.city) {
+                return { state: report.state, city: report.city };
+            }
+            const lat = Number(report.latitude) || 28.6139;
+            const lon = Number(report.longitude) || 77.2090;
+
+            if (lat >= 28.40 && lat <= 28.88 && lon >= 76.84 && lon <= 77.35) {
+                return { state: "Delhi", city: "New Delhi" };
+            }
+            if (lat >= 28.45 && lat <= 28.70 && lon > 77.35 && lon <= 77.60) {
+                return { state: "Uttar Pradesh", city: "Noida" };
+            }
+
+            let bestState = "Delhi";
+            let bestCity = "New Delhi";
+            let minDist = Infinity;
+
+            for (const [stName, stData] of Object.entries(INDIA_STATES_DATA)) {
+                for (const [ctName, coords] of Object.entries(stData.cities)) {
+                    const d = Math.hypot(lat - coords[0], lon - coords[1]);
+                    if (d < minDist) {
+                        minDist = d;
+                        bestState = stName;
+                        bestCity = ctName;
+                    }
+                }
+            }
+            return { state: bestState, city: bestCity };
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initStateCitySelectors();
+        });
+
+        // --- TRANSLATION DICTIONARY ---
+        const i18n = {
+            "subtitle": { en: "Hyperlocal Civic Tech", hi: "हाइपरलोकल सिविक टेक" },
+            "empower": { en: "Empower Your City", hi: "अपने शहर को सशक्त बनाएं" },
+            "onetap": { en: "One tap to fix your neighborhood.", hi: "अपने मोहल्ले को सुधारने के लिए एक टैप।" },
+            "reg_btn": { en: '<i class="fa-solid fa-user-plus mr-2"></i> New Registration', hi: '<i class="fa-solid fa-user-plus mr-2"></i> नया पंजीकरण' },
+            "login_btn": { en: '<i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> Citizen Login', hi: '<i class="fa-solid fa-arrow-right-to-bracket mr-2"></i> नागरिक लॉगिन' },
+            "admin_btn": { en: '<i class="fa-solid fa-shield-halved mr-2"></i> Admin Dispatch Portal', hi: '<i class="fa-solid fa-shield-halved mr-2"></i> व्यवस्थापक पोर्टल' },
+            "reg_title": { en: "Citizen Registration", hi: "नागरिक पंजीकरण" },
+            "pl_name": { en: "Full Name", hi: "पूरा नाम" },
+            "pl_mobile": { en: "Mobile Number", hi: "मोबाइल नंबर" },
+            "pl_email": { en: "Email Address", hi: "ईमेल पता" },
+            "pl_address": { en: "Home Address", hi: "घर का पता" },
+            "btn_register_submit": { en: '<i class="fa-solid fa-check mr-2"></i> Register', hi: '<i class="fa-solid fa-check mr-2"></i> रजिस्टर करें' },
+            "btn_cancel": { en: "Cancel", hi: "रद्द करें" },
+            "login_title": { en: "Welcome Back", hi: "वापसी पर स्वागत है" },
+            "login_sub": { en: "Enter your registered mobile number.", hi: "अपना पंजीकृत मोबाइल नंबर दर्ज करें।" },
+            "btn_login_submit": { en: "Login", hi: "लॉगिन" },
+            "btn_back_home": { en: "Back", hi: "वापस जाएँ" },
+            "hub_hello": { en: "Hello, Citizen", hi: "नमस्ते, नागरिक" },
+            "hub_report": { en: "Report Hazard", hi: "समस्या दर्ज करें" },
+            "hub_track": { en: "Track Status", hi: "स्थिति ट्रैक करें" },
+            "hub_community": { en: "Community Board", hi: "सामुदायिक बोर्ड" },
+            "hub_community_sub": { en: "See & Upvote local issues", hi: "स्थानीय समस्याएं देखें और अपवोट करें" },
+            "sos_title": { en: '<i class="fa-solid fa-circle-exclamation mr-1 animate-pulse"></i> SOS Quick-Dial', hi: '<i class="fa-solid fa-circle-exclamation mr-1 animate-pulse"></i> आपातकालीन डायल' },
+            "sos_police": { en: "POLICE", hi: "पुलिस" },
+            "sos_fire": { en: "FIRE", hi: "फायर" },
+            "sos_medic": { en: "MEDIC", hi: "चिकित्सा" },
+            "sos_civic": { en: "CIVIC", hi: "नगर निगम" },
+            "camp_badge": { en: "LIVE EVENT", hi: "लाइव अभियान" },
+            "camp_broadcast": { en: '<i class="fa-solid fa-bullhorn text-green-500 mr-2"></i> Broadcast New Campaign', hi: '<i class="fa-solid fa-bullhorn text-green-500 mr-2"></i> नया अभियान प्रसारित करें' },
+            "camp_btn": { en: '<i class="fa-solid fa-paper-plane mr-2"></i> Publish to All Citizens', hi: '<i class="fa-solid fa-paper-plane mr-2"></i> सभी नागरिकों को भेजें' }
+        };
+
+        let currentLang = 'en';
+        function toggleLang() {
+            currentLang = currentLang === 'en' ? 'hi' : 'en';
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if(i18n[key]) {
+                    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                        el.placeholder = i18n[key][currentLang];
+                    } else {
+                        el.innerHTML = i18n[key][currentLang];
+                    }
+                }
+            });
+            document.getElementById('gov-bot-messages').innerHTML = `<div class="bg-blue-100 text-blue-800 p-3 rounded-xl rounded-tl-none w-[85%] self-start shadow-sm">${currentLang === 'en' ? 'Hello! I am your AI Gov-Bot. Ask me about helplines, tracking reports, state hotspots, or Karma points!' : 'नमस्ते! मैं आपका AI गोव-बॉट हूँ। मुझसे हेल्पलाइन, ट्रैकिंग या कर्मा पॉइंट के बारे में पूछें!'}</div>`;
+        }
+
+        // --- GOV-BOT CHAT LOGIC ---
+        function toggleGovBot() {
+            const win = document.getElementById('gov-bot-window');
+            win.classList.toggle('hidden');
+            win.classList.toggle('flex');
+        }
+
+        function sendGovBotMessage() {
+            const input = document.getElementById('gov-bot-input');
+            const msg = input.value.trim();
+            if(!msg) return;
+            
+            appendBotMessage(msg, 'user');
+            input.value = '';
+            
+            setTimeout(() => {
+                let reply = currentLang === 'en' ? "I am your Civic Assistant! Try asking me about 'helplines', 'tracking', 'state map', or 'karma points'." : "मैं आपका नागरिक सहायक हूँ! मुझसे 'हेल्पलाइन', 'ट्रैकिंग', या 'कर्म पॉइंट' के बारे में पूछें।";
+                const lowerMsg = msg.toLowerCase();
+                if(lowerMsg.includes('helpline') || lowerMsg.includes('emergency') || lowerMsg.includes('number') || lowerMsg.includes('नंबर')) {
+                    reply = currentLang === 'en' ? "For Police dial 112. For Fire dial 101. The Municipal civic line is 155304." : "पुलिस के लिए 112 डायल करें। फायर के लिए 101। नगर निगम लाइन 155304 है।";
+                } else if(lowerMsg.includes('track') || lowerMsg.includes('status') || lowerMsg.includes('स्थिति')) {
+                    reply = currentLang === 'en' ? "You can track the live status of your reports in the 'Track Status' section on your dashboard!" : "आप अपने डैशबोर्ड पर 'स्थिति ट्रैक करें' अनुभाग में लाइव स्थिति ट्रैक कर सकते हैं!";
+                } else if(lowerMsg.includes('karma') || lowerMsg.includes('points') || lowerMsg.includes('पॉइंट')) {
+                    reply = currentLang === 'en' ? "You earn 50 Karma Points for every verified hazard you report! Level up to become a City Guardian." : "आप हर रिपोर्ट के लिए 50 कर्म पॉइंट कमाते हैं! सिटी गार्जियन बनने के लिए लेवल अप करें।";
+                } else if(lowerMsg.includes('state') || lowerMsg.includes('city') || lowerMsg.includes('map') || lowerMsg.includes('maharashtra')) {
+                    reply = "Our National Telemetry Map tracks reports across all Indian states and drills down into cities like Mumbai, Pune, and New Delhi in real time!";
+                }
+                appendBotMessage(reply, 'bot');
+            }, 600);
+        }
+
+        function appendBotMessage(text, sender) {
+            const container = document.getElementById('gov-bot-messages');
+            const div = document.createElement('div');
+            if(sender === 'user') {
+                div.className = "bg-purple-600 text-white p-3 rounded-xl rounded-tr-none w-[85%] self-end shadow-sm";
+            } else {
+                div.className = "bg-blue-100 text-blue-800 p-3 rounded-xl rounded-tl-none w-[85%] self-start shadow-sm";
+            }
+            div.innerText = text;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').innerText = message;
+            toast.classList.remove('-translate-y-32', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-32', 'opacity-0');
+            }, 5000);
+        }
+
+        function switchView(viewId) {
+            const views = ['landing-view', 'register-view', 'user-login-view', 'citizen-hub-view', 'citizen-timeline-view', 'admin-login-view', 'camera-view', 'preview-view', 'admin-dashboard-view', 'community-feed-view', 'campaign-details-view'];
+            views.forEach(v => {
+                const el = document.getElementById(v);
+                if (el) el.classList.add('hidden');
+            });
+            
+            const viewElement = document.getElementById(viewId);
+            if (viewElement) {
+                viewElement.classList.remove('hidden');
+                viewElement.classList.add('flex');
+                viewElement.classList.remove('fade-in');
+                void viewElement.offsetWidth;
+                viewElement.classList.add('fade-in');
+            }
+            
+            const subtitle = document.getElementById('header-subtitle');
+            if(viewId === 'citizen-hub-view' || viewId === 'citizen-timeline-view') subtitle.innerHTML = "<i class='fa-solid fa-user-shield mr-1'></i> Citizen Dashboard";
+            else if(viewId === 'community-feed-view') subtitle.innerHTML = "<i class='fa-solid fa-users mr-1'></i> Community Board";
+            else if(viewId === 'campaign-details-view') subtitle.innerHTML = "<i class='fa-solid fa-bullhorn mr-1'></i> Campaign Details";
+            else if(viewId === 'camera-view') subtitle.innerHTML = "<i class='fa-solid fa-record-vinyl text-red-400 animate-pulse mr-1'></i> Sensor Active";
+            else if(viewId === 'admin-dashboard-view') subtitle.innerHTML = "<i class='fa-solid fa-shield-halved mr-1'></i> Admin Authority Level";
+            else subtitle.innerHTML = i18n["subtitle"][currentLang];
+
+            const govBot = document.getElementById('gov-bot-container');
+            if(viewId === 'citizen-hub-view' || viewId === 'community-feed-view' || viewId === 'citizen-timeline-view' || viewId === 'campaign-details-view') {
+                govBot.classList.remove('hidden');
+                govBot.classList.add('flex');
+            } else {
+                govBot.classList.add('hidden');
+                govBot.classList.remove('flex');
+            }
+
+            if(viewId !== 'camera-view' && viewId !== 'preview-view' && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+        }
+
+        // --- UPDATED ADMIN TAB LOGIC (INCLUDES INDIA MAP) ---
+        let currentAdminTab = 'dispatch';
+
+        function refreshActiveAdminTab() {
+            if (currentAdminTab === 'dispatch') fetchReports();
+            else if (currentAdminTab === 'map') loadIndiaMapAnalytics();
+            else if (currentAdminTab === 'users') loadAdminUsers();
+        }
+
+        function toggleAdminView(view) {
+            currentAdminTab = view;
+            const dispatchGrid = document.getElementById('dashboard-grid');
+            const usersGrid = document.getElementById('users-grid');
+            const statsGrid = document.getElementById('admin-stats-container');
+            const campaignView = document.getElementById('campaign-admin-view');
+            const mapView = document.getElementById('map-admin-view');
+            
+            const tabsDesktop = {
+                'dispatch': document.getElementById('tab-desktop-dispatch'),
+                'map': document.getElementById('tab-desktop-map'),
+                'campaign': document.getElementById('tab-desktop-campaign'),
+                'users': document.getElementById('tab-desktop-users')
+            };
+            const tabsMobile = {
+                'dispatch': document.getElementById('tab-mobile-dispatch'),
+                'map': document.getElementById('tab-mobile-map'),
+                'campaign': document.getElementById('tab-mobile-campaign'),
+                'users': document.getElementById('tab-mobile-users')
+            };
+            
+            const activeClass = "bg-white shadow-sm text-blue-600";
+            const inactiveClass = "text-gray-500 hover:text-gray-800 bg-transparent shadow-none";
+
+            Object.keys(tabsDesktop).forEach(key => {
+                tabsDesktop[key].className = `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${inactiveClass}`;
+                tabsMobile[key].className = `px-2 py-2 rounded-md text-xs font-bold transition-all ${inactiveClass}`;
+            });
+
+            tabsDesktop[view].className = `px-4 py-1.5 rounded-md text-sm font-bold transition-all ${activeClass}`;
+            tabsMobile[view].className = `px-2 py-2 rounded-md text-xs font-bold transition-all ${activeClass}`;
+
+            dispatchGrid.classList.add('hidden'); dispatchGrid.classList.remove('grid');
+            usersGrid.classList.add('hidden'); usersGrid.classList.remove('grid');
+            statsGrid.classList.add('hidden');
+            campaignView.classList.add('hidden'); campaignView.classList.remove('flex');
+            mapView.classList.add('hidden'); mapView.classList.remove('flex');
+
+            if(view === 'dispatch') {
+                dispatchGrid.classList.remove('hidden'); dispatchGrid.classList.add('grid');
+                statsGrid.classList.remove('hidden');
+                fetchReports();
+            } else if (view === 'map') {
+                mapView.classList.remove('hidden'); mapView.classList.add('flex');
+                loadIndiaMapAnalytics();
+            } else if (view === 'campaign') {
+                campaignView.classList.remove('hidden'); campaignView.classList.add('flex');
+            } else {
+                usersGrid.classList.remove('hidden'); usersGrid.classList.add('grid');
+                loadAdminUsers();
+            }
+        }
+
+        // --- UNRESTRICTED INDIA MAP + AI STATE/CITY ANALYZER ---
+        let indiaLeafletMap = null;
+        let mapMarkersLayer = null;
+        let cachedAllReports = [];
+        let cachedRegisteredUsers = {};
+        let selectedStateFilter = null;
+        let selectedCityFilter = null;
+
+        function initIndiaLeafletMap() {
+            if (indiaLeafletMap) return;
+            indiaLeafletMap = L.map('india-leaflet-map', {
+                center: [22.5937, 78.9629],
+                zoom: 5,
+                minZoom: 4,
+                maxZoom: 16
+            });
+            // Works on local file:// and https:// without 403 blocks or API key watermarks
+            L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=en&gl=IN&x={x}&y={y}&z={z}', {
+                maxZoom: 19,
+                attribution: '&copy; CivicPulse Geo-Telemetry'
+            }).addTo(indiaLeafletMap);
+            mapMarkersLayer = L.layerGroup().addTo(indiaLeafletMap);
+        }
+
+        async function loadIndiaMapAnalytics() {
+            initIndiaLeafletMap();
+            setTimeout(() => {
+                if (indiaLeafletMap) indiaLeafletMap.invalidateSize();
+            }, 200);
+
+            try {
+                const [reportsRes, usersRes] = await Promise.all([
+                    fetch('https://sidsidhu818.pythonanywhere.com/api/reports'),
+                    fetch('https://sidsidhu818.pythonanywhere.com/api/users').catch(() => ({ json: () => ({}) }))
+                ]);
+                cachedAllReports = await reportsRes.json();
+                cachedRegisteredUsers = await usersRes.json();
+
+                renderIndiaMapAndStateList();
+            } catch (e) {
+                console.log("Error loading map telemetry:", e);
+            }
+        }
+
+        function updateAIMapInsight(stateName, stateData, allStateAggregation) {
+            const regionTag = document.getElementById('ai-map-region-tag');
+            const summaryText = document.getElementById('ai-map-summary-text');
+
+            if (!stateName) {
+                regionTag.innerText = "All India Telemetry";
+                const total = cachedAllReports.length;
+                if (total === 0) {
+                    summaryText.innerHTML = "No active civic hazards logged across India yet. Submit a report to trigger AI regional triage.";
+                    return;
+                }
+                const topState = Object.keys(allStateAggregation).sort((a, b) => allStateAggregation[b].total - allStateAggregation[a].total)[0];
+                const topCount = allStateAggregation[topState].total;
+                summaryText.innerHTML = `<strong>${total} total reports</strong> logged nationwide. Highest concentration detected in <strong>${topState} (${topCount} reports)</strong>. Click on <strong>${topState}</strong> to inspect city-level hotspots.`;
+            } else {
+                regionTag.innerText = `State Triage: ${stateName}`;
+                const total = stateData ? stateData.total : 0;
+                if (total === 0) {
+                    summaryText.innerHTML = `<strong>${stateName}:</strong> 0 active problems reported. Infrastructure status across all monitored cities in ${stateName} is currently clear.`;
+                    return;
+                }
+                const topCity = Object.keys(stateData.cities).sort((a, b) => stateData.cities[b] - stateData.cities[a])[0];
+                const topCityCount = stateData.cities[topCity];
+                const catCounts = {};
+                stateData.reports.forEach(r => {
+                    const c = r.category || "Road Damage";
+                    catCounts[c] = (catCounts[c] || 0) + 1;
+                });
+                const topCat = Object.keys(catCounts).sort((a, b) => catCounts[b] - catCounts[a])[0];
+                summaryText.innerHTML = `<strong>${stateName} Analysis:</strong> ${total} problem(s) reported. <strong>${topCity}</strong> is the primary hotspot (${topCityCount} issue${topCityCount > 1 ? 's' : ''}), predominantly <strong>${topCat}</strong>. Recommended: Dispatch municipal crew to ${topCity}.`;
+            }
+        }
+
+        function runAIMapDeepAnalysis() {
+            const summaryText = document.getElementById('ai-map-summary-text').innerText;
+            showToast(`AI Triage: ${summaryText}`);
+        }
+
+        function renderIndiaMapAndStateList() {
+            if (!mapMarkersLayer) return;
+            mapMarkersLayer.clearLayers();
+
+            const stateAggregation = {};
+            Object.keys(INDIA_STATES_DATA).forEach(st => {
+                stateAggregation[st] = { total: 0, cities: {}, reports: [] };
+            });
+
+            cachedAllReports.forEach(rep => {
+                const loc = resolveReportLocation(rep);
+                const st = loc.state;
+                const ct = loc.city;
+                if (!stateAggregation[st]) {
+                    stateAggregation[st] = { total: 0, cities: {}, reports: [] };
+                }
+                stateAggregation[st].total += 1;
+                stateAggregation[st].cities[ct] = (stateAggregation[st].cities[ct] || 0) + 1;
+                stateAggregation[st].reports.push({ ...rep, _resolvedState: st, _resolvedCity: ct });
+            });
+
+            // 1. Render State Markers on the Map
+            Object.entries(INDIA_STATES_DATA).forEach(([stName, stCoords]) => {
+                const count = stateAggregation[stName] ? stateAggregation[stName].total : 0;
+                const isSelected = selectedStateFilter === stName;
+                
+                const bgColor = count > 0 
+                    ? (isSelected ? '#2563eb' : '#dc2626') 
+                    : '#64748b';
+                const opacity = count > 0 ? '1' : '0.8';
+
+                const iconHtml = `
+                    <div class="state-marker-pin" style="background:${bgColor}; opacity:${opacity};">
+                        <span>${stName}</span>
+                        <span style="background:rgba(255,255,255,0.28); padding:1px 6px; border-radius:999px; margin-left:6px;">${count}</span>
+                    </div>
+                `;
+
+                const customIcon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: iconHtml,
+                    iconSize: [120, 28],
+                    iconAnchor: [60, 14]
+                });
+
+                const marker = L.marker([stCoords.lat, stCoords.lon], { icon: customIcon });
+                marker.on('click', () => {
+                    selectStateOnMap(stName);
+                });
+                mapMarkersLayer.addLayer(marker);
+            });
+
+            // If a State is selected, drop City-level pins inside that State on the map
+            if (selectedStateFilter && INDIA_STATES_DATA[selectedStateFilter]) {
+                const stCities = INDIA_STATES_DATA[selectedStateFilter].cities || {};
+                const stCityCounts = stateAggregation[selectedStateFilter]?.cities || {};
+
+                Object.entries(stCities).forEach(([cityName, coords]) => {
+                    const cCount = stCityCounts[cityName] || 0;
+                    const cityHtml = `
+                        <div class="city-marker-pin" style="border-color:${cCount > 0 ? '#facc15' : '#94a3b8'}; background:${cCount > 0 ? '#0f172a' : '#475569'};">
+                            <i class="fa-solid fa-location-dot" style="color:${cCount > 0 ? '#facc15' : '#cbd5e1'}; margin-right:4px;"></i>
+                            <span>${cityName}: ${cCount}</span>
+                        </div>
+                    `;
+                    const cityIcon = L.divIcon({
+                        className: 'custom-city-icon',
+                        html: cityHtml,
+                        iconSize: [100, 24],
+                        iconAnchor: [50, 12]
+                    });
+                    const cMarker = L.marker([coords[0], coords[1]], { icon: cityIcon });
+                    cMarker.on('click', () => {
+                        filterBySpecificCity(selectedStateFilter, cityName);
+                    });
+                    mapMarkersLayer.addLayer(cMarker);
+                });
+            }
+
+            // 2. Render States Overview List on the Right Panel
+            const statesListEl = document.getElementById('states-list-container');
+            statesListEl.innerHTML = '';
+
+            const sortedStates = Object.keys(stateAggregation).sort((a, b) => {
+                return stateAggregation[b].total - stateAggregation[a].total || a.localeCompare(b);
+            });
+
+            sortedStates.forEach(stName => {
+                const count = stateAggregation[stName].total;
+                const isSelected = selectedStateFilter === stName;
+                const btn = document.createElement('button');
+                btn.className = `w-full p-3 rounded-xl border text-left flex justify-between items-center transition-all ${
+                    isSelected 
+                        ? 'bg-blue-50 border-blue-600 text-blue-900 shadow-sm' 
+                        : count > 0 
+                            ? 'bg-white hover:bg-gray-50 border-gray-200 text-gray-800' 
+                            : 'bg-gray-50/60 hover:bg-gray-100 border-gray-100 text-gray-400'
+                }`;
+                btn.onclick = () => selectStateOnMap(stName);
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2.5">
+                        <span class="w-2.5 h-2.5 rounded-full ${count > 0 ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}"></span>
+                        <span class="font-bold text-sm">${stName}</span>
+                    </div>
+                    <span class="text-xs font-bold px-2.5 py-1 rounded-full ${count > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-600'}">
+                        ${count} ${count === 1 ? 'Report' : 'Reports'}
+                    </span>
+                `;
+                statesListEl.appendChild(btn);
+            });
+
+            // 3. Update AI Insights & City Breakdown
+            if (selectedStateFilter) {
+                updateAIMapInsight(selectedStateFilter, stateAggregation[selectedStateFilter], stateAggregation);
+                renderSelectedStateCities(selectedStateFilter, stateAggregation[selectedStateFilter]);
+            } else {
+                updateAIMapInsight(null, null, stateAggregation);
+                const topState = sortedStates[0];
+                if (topState && stateAggregation[topState].total > 0) {
+                    renderSelectedStateCities(topState, stateAggregation[topState], false);
+                } else {
+                    document.getElementById('selected-state-heading').innerText = "All States";
+                    document.getElementById('selected-state-total-badge').innerText = `${cachedAllReports.length} Total`;
+                    document.getElementById('cities-breakdown-container').innerHTML = `<p class="text-xs text-gray-400 italic py-4 text-center">Click any state above (e.g., Maharashtra) to see which city the problems came from.</p>`;
+                }
+                renderMapFilteredReportCards(cachedAllReports, "All India States");
+            }
+        }
+
+        function selectStateOnMap(stateName) {
+            selectedStateFilter = stateName;
+            selectedCityFilter = null;
+            document.getElementById('map-active-view-badge').innerText = `State: ${stateName}`;
+            document.getElementById('clear-city-filter-btn').classList.remove('hidden');
+
+            const stCoords = INDIA_STATES_DATA[stateName];
+            if (stCoords && indiaLeafletMap) {
+                indiaLeafletMap.flyTo([stCoords.lat, stCoords.lon], 6, { duration: 0.8 });
+            }
+
+            renderIndiaMapAndStateList();
+        }
+
+        function renderSelectedStateCities(stateName, stateData, updateCards = true) {
+            document.getElementById('selected-state-heading').innerText = `${stateName} — Cities`;
+            const total = stateData ? stateData.total : 0;
+            document.getElementById('selected-state-total-badge').innerText = `${total} ${total === 1 ? 'Problem' : 'Problems'}`;
+            document.getElementById('selected-state-helper').innerText = `Cities in ${stateName} reporting civic problems (click a city to zoom & filter):`;
+
+            const container = document.getElementById('cities-breakdown-container');
+            container.innerHTML = '';
+
+            const cityCounts = {};
+            const cityCategories = {};
+
+            if (INDIA_STATES_DATA[stateName] && INDIA_STATES_DATA[stateName].cities) {
+                Object.keys(INDIA_STATES_DATA[stateName].cities).forEach(c => {
+                    cityCounts[c] = 0;
+                    cityCategories[c] = [];
+                });
+            }
+            if (stateData && stateData.reports) {
+                stateData.reports.forEach(r => {
+                    const c = r._resolvedCity || "Unknown City";
+                    cityCounts[c] = (cityCounts[c] || 0) + 1;
+                    if (!cityCategories[c]) cityCategories[c] = [];
+                    if (r.category && !cityCategories[c].includes(r.category)) {
+                        cityCategories[c].push(r.category);
+                    }
+                });
+            }
+
+            const sortedCities = Object.keys(cityCounts).sort((a, b) => cityCounts[b] - cityCounts[a]);
+
+            sortedCities.forEach(cityName => {
+                const cCount = cityCounts[cityName];
+                const pct = total > 0 ? Math.round((cCount / total) * 100) : 0;
+                const isCitySelected = selectedCityFilter === cityName && selectedStateFilter === stateName;
+                const catsText = cityCategories[cityName]?.length > 0 
+                    ? `Problems: ${cityCategories[cityName].join(', ')}` 
+                    : 'No active problems reported';
+
+                const cityRow = document.createElement('div');
+                cityRow.onclick = () => filterBySpecificCity(stateName, cityName);
+                cityRow.className = `p-3 rounded-xl border cursor-pointer transition-all ${
+                    isCitySelected
+                        ? 'bg-blue-50 border-blue-600 shadow-sm'
+                        : cCount > 0
+                            ? 'bg-gray-50 hover:bg-blue-50/50 border-gray-200'
+                            : 'bg-white border-gray-100 opacity-75 hover:opacity-100'
+                }`;
+                cityRow.innerHTML = `
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-sm text-gray-800 flex items-center">
+                            <i class="fa-solid fa-city ${cCount > 0 ? 'text-blue-600' : 'text-gray-400'} mr-2"></i>${cityName}
+                        </span>
+                        <span class="text-xs font-bold ${cCount > 0 ? 'text-blue-700 bg-blue-100' : 'text-gray-500 bg-gray-100'} px-2.5 py-0.5 rounded-full">
+                            ${cCount} ${cCount === 1 ? 'Problem' : 'Problems'} (${pct}%)
+                        </span>
+                    </div>
+                    <p class="text-[11px] text-gray-500 mb-1.5 truncate">${catsText}</p>
+                    <div class="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+                    </div>
+                `;
+                container.appendChild(cityRow);
+            });
+
+            if (updateCards && !selectedCityFilter) {
+                const filtered = (stateData && stateData.reports) ? stateData.reports : [];
+                renderMapFilteredReportCards(filtered, `${stateName} (All Cities)`);
+            }
+        }
+
+        function filterBySpecificCity(stateName, cityName) {
+            selectedStateFilter = stateName;
+            selectedCityFilter = cityName;
+            document.getElementById('map-active-view-badge').innerText = `${cityName}, ${stateName}`;
+            document.getElementById('clear-city-filter-btn').classList.remove('hidden');
+
+            if (INDIA_STATES_DATA[stateName]?.cities?.[cityName] && indiaLeafletMap) {
+                const [cLat, cLon] = INDIA_STATES_DATA[stateName].cities[cityName];
+                indiaLeafletMap.flyTo([cLat, cLon], 11, { duration: 0.8 });
+            }
+
+            const matchingReports = cachedAllReports.filter(r => {
+                const loc = resolveReportLocation(r);
+                return loc.state === stateName && loc.city.toLowerCase() === cityName.toLowerCase();
+            });
+
+            renderIndiaMapAndStateList();
+            renderMapFilteredReportCards(matchingReports, `${cityName}, ${stateName}`);
+        }
+
+        function resetIndiaMapSelection() {
+            selectedStateFilter = null;
+            selectedCityFilter = null;
+            document.getElementById('map-active-view-badge').innerText = "Showing: All India States";
+            document.getElementById('clear-city-filter-btn').classList.add('hidden');
+            if (indiaLeafletMap) {
+                indiaLeafletMap.flyTo([22.5937, 78.9629], 5, { duration: 0.8 });
+            }
+            renderIndiaMapAndStateList();
+        }
+
+        function renderMapFilteredReportCards(reportsList, regionLabel) {
+            const titleEl = document.getElementById('map-filtered-reports-title');
+            const subEl = document.getElementById('map-filtered-reports-subtitle');
+            const gridEl = document.getElementById('map-filtered-reports-grid');
+
+            titleEl.innerHTML = `<i class="fa-solid fa-layer-group text-blue-600 mr-2"></i>Regional Hazard Tickets — ${regionLabel}`;
+            subEl.innerText = `Showing ${reportsList.length} geotagged report(s) for ${regionLabel}.`;
+            gridEl.innerHTML = '';
+
+            if (reportsList.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="col-span-full text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-500">
+                        <i class="fa-solid fa-map-location-dot text-3xl mb-2 text-gray-300"></i>
+                        <p class="font-semibold text-sm">No hazard reports logged in ${regionLabel} yet.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            [...reportsList].reverse().forEach(report => {
+                const loc = resolveReportLocation(report);
+                const displayCat = report.category || "Uncategorized";
+                const displayDesc = report.description || "No description provided.";
+                const currentStatus = report.status || "Reported";
+                const reportUpvotes = report.upvotes !== undefined ? report.upvotes : 0;
+
+                let reporterDisplay = "Anonymous Citizen";
+                if (report.reporterId && report.reporterId !== 'anonymous') {
+                    if (cachedRegisteredUsers[report.reporterId]) {
+                        reporterDisplay = `${cachedRegisteredUsers[report.reporterId].name} (${report.reporterId})`;
+                    } else {
+                        reporterDisplay = `Mobile: ${report.reporterId}`;
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.className = "bg-gray-50 p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <span class="bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm">
+                            <i class="fa-solid fa-location-dot mr-1"></i> ${loc.city}, ${loc.state}
+                        </span>
+                        <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded border border-purple-200">
+                            <i class="fa-solid fa-arrow-up mr-1"></i> ${reportUpvotes}
+                        </span>
+                    </div>
+                    <div class="h-36 bg-gray-200 rounded-xl overflow-hidden mb-3 border border-gray-200">
+                        <img src="${report.photo}" class="w-full h-full object-cover" alt="Hazard">
+                    </div>
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-bold text-gray-800 text-sm">${displayCat}</span>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800">${currentStatus}</span>
+                    </div>
+                    <p class="text-xs text-gray-600 italic mb-2 flex-1">"${displayDesc}"</p>
+                    <p class="text-[10px] text-gray-500 mb-3"><i class="fa-solid fa-user mr-1"></i> ${reporterDisplay}</p>
+                    <a href="https://www.google.com/maps?q=${report.latitude},${report.longitude}" target="_blank" class="w-full bg-white hover:bg-green-50 text-green-700 border border-green-200 font-bold py-2 rounded-lg transition text-xs flex items-center justify-center">
+                        <i class="fa-solid fa-map mr-1.5"></i> Open Exact GPS Pin
+                    </a>
+                `;
+                gridEl.appendChild(card);
+            });
+        }
+        // ---------------------------------------------------
+
+        let currentActiveUser = null;
+        const USERS_API = 'https://sidsidhu818.pythonanywhere.com/api/users';
+        const CAMPAIGN_API = 'https://sidsidhu818.pythonanywhere.com/api/campaign';
+
+        async function registerUser() {
+            const name = document.getElementById('reg-name').value;
+            const mobile = document.getElementById('reg-mobile').value;
+            const email = document.getElementById('reg-email').value;
+            const dob = document.getElementById('reg-dob').value;
+            const address = document.getElementById('reg-address').value;
+            
+            if(!name || !mobile) return alert("Name and Mobile Number are required!");
+            
+            const btn = document.getElementById('reg-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Registering...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(USERS_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, mobile, email, dob, address })
+                });
+
+                if(response.ok) {
+                    alert("Registration Successful on City Cloud!");
+                    switchView('user-login-view');
+                } else {
+                    alert("This mobile number is already registered. Please login.");
+                }
+            } catch (error) {
+                alert("Network Error. Cannot connect to database.");
+            } finally {
+                btn.innerHTML = i18n["btn_register_submit"][currentLang];
+                btn.disabled = false;
+            }
+        }
+
+        async function loginUser() {
+            const mobile = document.getElementById('login-mobile').value;
+            if(!mobile) return;
+            
+            const btn = document.getElementById('login-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Verifying...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(USERS_API);
+                const users = await response.json();
+                
+                if(users[mobile]) {
+                    currentActiveUser = users[mobile];
+                    let greeting = currentLang === 'en' ? 'Hello' : 'नमस्ते';
+                    document.getElementById('welcome-text').innerText = `${greeting}, ${currentActiveUser.name.split(' ')[0]}`;
+                    
+                    const repRes = await fetch('https://sidsidhu818.pythonanywhere.com/api/reports');
+                    const allReports = await repRes.json();
+                    const userReports = allReports.filter(r => r.reporterId === currentActiveUser.mobile);
+                    
+                    const karmaPoints = 10 + (userReports.length * 50);
+                    let karmaLevel = 1;
+                    if(karmaPoints >= 60) karmaLevel = 2;
+                    if(karmaPoints >= 160) karmaLevel = 3;
+                    document.getElementById('karma-points').innerText = karmaPoints;
+                    document.getElementById('karma-level').innerText = karmaLevel;
+
+                    loadCampaignForCitizen();
+
+                    const updatedReports = userReports.filter(r => r.status === 'Resolved' || r.status === 'Assigned');
+                    if (updatedReports.length > 0) {
+                        const latest = updatedReports[updatedReports.length - 1]; 
+                        setTimeout(() => showToast(`City Update: Your reported ${latest.category} was marked as ${latest.status}!`), 1000);
+                    }
+
+                    switchView('citizen-hub-view');
+                } else {
+                    alert("Mobile number not found in city database. Register first.");
+                }
+            } catch (error) {
+                alert("Network Error verifying account.");
+            } finally {
+                btn.innerHTML = i18n["btn_login_submit"][currentLang];
+                btn.disabled = false;
+            }
+        }
+
+        // --- CAMPAIGN LOGIC ---
+        async function loadCampaignForCitizen() {
+            try {
+                const response = await fetch(CAMPAIGN_API);
+                const camp = await response.json();
+                const block = document.getElementById('citizen-campaign-block'); 
+                
+                if(camp.active && camp.title) {
+                    document.getElementById('camp-details-title').innerText = camp.title;
+                    document.getElementById('camp-details-desc').innerText = camp.description;
+                    
+                    if(camp.photo) {
+                        document.getElementById('camp-details-img-container').classList.remove('hidden');
+                        document.getElementById('camp-details-img').src = camp.photo;
+                    } else {
+                        document.getElementById('camp-details-img-container').classList.add('hidden');
+                    }
+                    block.classList.remove('hidden');
+                    block.classList.add('flex');
+                } else {
+                    block.classList.add('hidden');
+                    block.classList.remove('flex');
+                }
+            } catch (e) {
+                console.log("No active campaigns.");
+            }
+        }
+
+        async function publishCampaign() {
+            const title = document.getElementById('admin-camp-title').value;
+            const desc = document.getElementById('admin-camp-desc').value;
+            const photoInput = document.getElementById('admin-camp-photo');
+            
+            if(!title || !desc) return alert("Title and message are required.");
+            
+            const btn = document.getElementById('publish-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Publishing...';
+            
+            let photoB64 = "";
+            if (photoInput.files && photoInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = async function(e) {
+                    photoB64 = e.target.result;
+                    await sendCampaignData(title, desc, photoB64, true);
+                    btn.innerHTML = i18n["camp_btn"][currentLang];
+                };
+                reader.readAsDataURL(photoInput.files[0]);
+            } else {
+                await sendCampaignData(title, desc, photoB64, true);
+                btn.innerHTML = i18n["camp_btn"][currentLang];
+            }
+        }
+
+        async function clearCampaign() {
+            await sendCampaignData("", "", "", false);
+            document.getElementById('admin-camp-title').value = '';
+            document.getElementById('admin-camp-desc').value = '';
+            document.getElementById('admin-camp-photo').value = '';
+            alert("Campaign stopped. Hidden from citizen dashboards.");
+        }
+
+        async function sendCampaignData(title, description, photo, active) {
+            try {
+                await fetch(CAMPAIGN_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active, title, description, photo })
+                });
+                if(active) alert("Campaign Published Successfully!");
+            } catch(e) {
+                alert("Network error publishing campaign.");
+            }
+        }
+
+        async function loadAdminUsers() {
+            const usersGrid = document.getElementById('users-grid');
+            usersGrid.innerHTML = '<div class="col-span-2 text-center text-gray-500 py-10"><i class="fa-solid fa-spinner fa-spin text-3xl mb-3"></i><p>Loading database...</p></div>';
+            
+            try {
+                const response = await fetch(USERS_API);
+                const users = await response.json();
+                const userKeys = Object.keys(users);
+                
+                usersGrid.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100 shadow-sm flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-blue-900">Registered Citizens</h3>
+                            <p class="text-sm text-blue-700 mt-1">Total active accounts tracking civic reports.</p>
+                        </div>
+                        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md text-2xl font-bold text-blue-600">
+                            ${userKeys.length}
+                        </div>
+                    </div>
+                `;
+                
+                userKeys.forEach(mobile => {
+                    const u = users[mobile];
+                    usersGrid.innerHTML += `
+                        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition">
+                            <div class="flex items-center mb-4 pb-4 border-b border-gray-100">
+                                <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xl mr-4 shadow-inner"><i class="fa-solid fa-user"></i></div>
+                                <div>
+                                    <h4 class="font-bold text-gray-800 text-lg">${u.name}</h4>
+                                    <p class="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded inline-block mt-1"><i class="fa-solid fa-mobile-screen mr-1 text-gray-400"></i>${u.mobile}</p>
+                                </div>
+                            </div>
+                            <div class="text-sm text-gray-600 space-y-2">
+                                <p class="flex items-center"><i class="fa-solid fa-envelope w-5 text-gray-400"></i> ${u.email || 'No email provided'}</p>
+                                <p class="flex items-center"><i class="fa-solid fa-cake-candles w-5 text-gray-400"></i> ${u.dob || 'No DOB provided'}</p>
+                                <div class="flex items-start mt-2 pt-2 border-t border-gray-50">
+                                    <i class="fa-solid fa-house w-5 text-gray-400 mt-1"></i> 
+                                    <span class="flex-1 italic">${u.address || 'No address provided'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch(e) {
+                usersGrid.innerHTML = '<div class="col-span-2 text-center text-red-500 py-10">Error loading database.</div>';
+            }
+        }
+
+        function openCamera() { switchView('camera-view'); startCamera(); }
+        function openTimeline() { switchView('citizen-timeline-view'); fetchCitizenReports(); }
+        function openCommunityFeed() { switchView('community-feed-view'); fetchCommunityReports(); }
+
+        function loginAdmin() {
+            if(document.getElementById('admin-pin').value === '9675059250') {
+                switchView('admin-dashboard-view');
+                toggleAdminView('dispatch'); 
+            } else { alert("Access Denied."); }
+        }
+
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const photoPreview = document.getElementById('photo-preview');
+        const hazardDescInput = document.getElementById('hazard-description');
+        const hazardCategoryInput = document.getElementById('hazard-category');
+        let currentPhotoBase64 = null;
+        let currentLocation = { lat: null, lon: null };
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                video.srcObject = stream;
+            } catch (err) { alert("Camera access denied."); }
+        }
+
+        function fetchLocation() {
+            const badge = document.getElementById('gps-detect-badge');
+            if(badge) badge.innerText = "Locating via GPS...";
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    async (pos) => {
+                        currentLocation.lat = pos.coords.latitude;
+                        currentLocation.lon = pos.coords.longitude;
+                        try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${currentLocation.lat}&lon=${currentLocation.lon}`);
+                            const data = await res.json();
+                            if (data && data.address) {
+                                const detectedState = data.address.state || "Delhi";
+                                const detectedCity = data.address.city || data.address.town || data.address.state_district || data.address.suburb || "New Delhi";
+                                
+                                const stateSelect = document.getElementById('hazard-state');
+                                const matchedState = Object.keys(INDIA_STATES_DATA).find(s => detectedState.toLowerCase().includes(s.toLowerCase()));
+                                if (matchedState) {
+                                    stateSelect.value = matchedState;
+                                    populateCityOptions(matchedState, detectedCity);
+                                } else {
+                                    document.getElementById('hazard-city').value = detectedCity;
+                                }
+                                if(badge) badge.innerText = `📍 GPS Locked: ${detectedCity}`;
+                            }
+                        } catch (e) {
+                            const fallback = resolveReportLocation({ latitude: currentLocation.lat, longitude: currentLocation.lon });
+                            document.getElementById('hazard-state').value = fallback.state;
+                            populateCityOptions(fallback.state, fallback.city);
+                            if(badge) badge.innerText = `📍 GPS Locked (${fallback.city})`;
+                        }
+                    },
+                    () => {
+                        currentLocation.lat = 19.0760;
+                        currentLocation.lon = 72.8777;
+                        if(badge) badge.innerText = "Select State & City Below";
+                    }
+                );
+            }
+        }
+
+        document.getElementById('capture-btn').addEventListener('click', async () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            currentPhotoBase64 = canvas.toDataURL('image/jpeg', 0.8);
+            photoPreview.src = currentPhotoBase64;
+            switchView('preview-view');
+            fetchLocation();
+
+            const categorySelect = document.getElementById('hazard-category');
+            const categoryLabel = document.getElementById('ai-category-label');
+            
+            categoryLabel.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles text-indigo-500 animate-spin mr-1"></i> AI Analyzing Hazard via Edge Model...';
+            categorySelect.disabled = true;
+
+            try {
+                const response = await fetch('https://sidsidhu818.pythonanywhere.com/api/classify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ photo: currentPhotoBase64 })
+                });
+                
+                const result = await response.json();
+                if (result.category) {
+                    categorySelect.value = result.category; 
+                }
+            } catch (err) {
+                categorySelect.value = "Road Damage";
+            } finally {
+                categoryLabel.innerHTML = '<i class="fa-solid fa-microchip text-indigo-500 mr-1"></i> Issue Category (Auto-Detected by AI)';
+                categorySelect.disabled = false;
+            }
+        });
+
+        document.getElementById('retake-btn').addEventListener('click', () => {
+            currentPhotoBase64 = null;
+            hazardDescInput.value = ''; 
+            document.getElementById('hazard-category').value = 'Road Damage';
+            switchView('camera-view');
+            startCamera();
+        });
+
+        document.getElementById('submit-btn').addEventListener('click', async () => {
+            const selectedState = document.getElementById('hazard-state').value || "Maharashtra";
+            const selectedCity = document.getElementById('hazard-city').value.trim() || "Mumbai";
+
+            let submitLat = currentLocation.lat;
+            let submitLon = currentLocation.lon;
+            const stObj = INDIA_STATES_DATA[selectedState];
+            if (stObj && stObj.cities && stObj.cities[selectedCity]) {
+                submitLat = stObj.cities[selectedCity][0];
+                submitLon = stObj.cities[selectedCity][1];
+            } else if (!submitLat || !submitLon) {
+                submitLat = stObj ? stObj.lat : 28.6139;
+                submitLon = stObj ? stObj.lon : 77.2090;
+            }
+
+            const btn = document.getElementById('submit-btn');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> Submitting...'; 
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('https://sidsidhu818.pythonanywhere.com/api/reports', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        reporterId: currentActiveUser ? currentActiveUser.mobile : 'anonymous',
+                        category: hazardCategoryInput.value,
+                        description: hazardDescInput.value,
+                        photo: currentPhotoBase64,
+                        latitude: submitLat,
+                        longitude: submitLon,
+                        state: selectedState,
+                        city: selectedCity,
+                        timestamp: new Date().toISOString(),
+                        status: "Reported",
+                        assignedDate: "",
+                        upvotes: 0
+                    })
+                });
+
+                if(response.ok) {
+                    let k = parseInt(document.getElementById('karma-points').innerText) + 50;
+                    document.getElementById('karma-points').innerText = k;
+                    if(k >= 60) document.getElementById('karma-level').innerText = 2;
+                    if(k >= 160) document.getElementById('karma-level').innerText = 3;
+
+                    alert(`Geotagged hazard logged in ${selectedCity}, ${selectedState}!`);
+                    hazardDescInput.value = ''; 
+                    switchView('citizen-hub-view');
+                } else throw new Error("Server error");
+            } catch (error) {
+                alert('Network Error. Ensure your backend is running.');
+            } finally {
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane mr-2"></i> Submit to City DB'; 
+                btn.disabled = false;
+            }
+        });
+
+        async function fetchReports() {
+            try {
+                const [reportsRes, usersRes] = await Promise.all([
+                    fetch('https://sidsidhu818.pythonanywhere.com/api/reports'),
+                    fetch('https://sidsidhu818.pythonanywhere.com/api/users').catch(() => ({ json: () => ({}) }))
+                ]);
+                
+                const reports = await reportsRes.json();
+                const registeredUsers = await usersRes.json();
+                cachedAllReports = reports;
+                cachedRegisteredUsers = registeredUsers;
+                
+                const total = reports.length;
+                const resolved = reports.filter(r => r.status === 'Resolved').length;
+                const pending = total - resolved;
+                const resolveRate = total === 0 ? 0 : Math.round((resolved/total)*100);
+
+                document.getElementById('admin-stats-container').innerHTML = `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-blue-100 flex flex-col justify-center items-center">
+                        <span class="text-3xl font-bold text-blue-600">${total}</span>
+                        <span class="text-[10px] md:text-xs text-gray-500 font-bold uppercase mt-1 text-center">Total Reports</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-yellow-100 flex flex-col justify-center items-center">
+                        <span class="text-3xl font-bold text-yellow-500">${pending}</span>
+                        <span class="text-[10px] md:text-xs text-gray-500 font-bold uppercase mt-1 text-center">Pending Tasks</span>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-green-100 flex flex-col justify-center items-center">
+                        <span class="text-3xl font-bold text-green-500">${resolveRate}%</span>
+                        <span class="text-[10px] md:text-xs text-gray-500 font-bold uppercase mt-1 text-center">Resolved Rate</span>
+                    </div>
+                `;
+
+                const dashboard = document.getElementById('dashboard-grid');
+                dashboard.innerHTML = ''; 
+
+                reports.reverse().forEach((report) => {
+                    const loc = resolveReportLocation(report);
+                    const displayCat = report.category || "Uncategorized";
+                    const displayDesc = report.description || "No description provided.";
+                    const currentStatus = report.status || "Reported";
+                    const currentDate = report.assignedDate || "";
+                    const reportUpvotes = report.upvotes !== undefined ? report.upvotes : 0;
+                    
+                    let reporterDisplay = "Anonymous Citizen";
+                    if (report.reporterId && report.reporterId !== 'anonymous') {
+                        if (registeredUsers[report.reporterId]) {
+                            reporterDisplay = `${registeredUsers[report.reporterId].name} (${report.reporterId})`;
+                        } else {
+                            reporterDisplay = `Mobile: ${report.reporterId}`;
+                        }
+                    }
+                    
+                    let tagColor = "bg-gray-100 text-gray-800";
+                    if(displayCat.includes("Road")) tagColor = "bg-yellow-100 text-yellow-800 border-yellow-200";
+                    if(displayCat.includes("Electrical")) tagColor = "bg-red-100 text-red-800 border-red-200";
+                    if(displayCat.includes("Water")) tagColor = "bg-blue-100 text-blue-800 border-blue-200";
+                    if(displayCat.includes("Sanitation")) tagColor = "bg-green-100 text-green-800 border-green-200";
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-5 rounded-2xl shadow-md border border-gray-100 relative overflow-hidden flex flex-col";
+                    
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="flex flex-wrap gap-1">
+                                <span class="border text-[10px] font-bold px-2 py-1 rounded shadow-sm inline-block w-fit ${tagColor}">${displayCat}</span>
+                                <span class="border border-purple-200 bg-purple-50 text-purple-700 text-[10px] font-bold px-2 py-1 rounded shadow-sm inline-block w-fit"><i class="fa-solid fa-arrow-up mr-1"></i> ${reportUpvotes} Upvotes</span>
+                                <span class="border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded shadow-sm inline-block w-fit"><i class="fa-solid fa-location-dot mr-1"></i> ${loc.city}, ${loc.state}</span>
+                            </div>
+                            <span class="text-gray-400 text-[10px] font-medium text-right w-16">${new Date(report.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        
+                        <div class="bg-gray-100 rounded-xl overflow-hidden mb-3 border border-gray-200">
+                            <img src="${report.photo}" class="w-full h-40 object-cover" alt="Hazard">
+                        </div>
+                        
+                        <div class="mb-2">
+                            <span class="inline-block bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-1 rounded border border-blue-100">
+                                <i class="fa-solid fa-user-tag mr-1"></i> Reported by: ${reporterDisplay}
+                            </span>
+                        </div>
+
+                        <p class="text-gray-700 text-sm font-medium mb-3 italic flex-1">"${displayDesc}"</p>
+                        
+                        <div class="text-xs text-gray-500 font-mono mb-3">
+                            <p><i class="fa-solid fa-location-dot text-gray-400 w-3"></i> ${Number(report.latitude).toFixed(4)} <i class="fa-solid fa-location-crosshairs text-gray-400 w-3 ml-2"></i> ${Number(report.longitude).toFixed(4)}</p>
+                        </div>
+
+                        <div class="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-3 space-y-2">
+                            <p class="text-xs font-bold text-gray-700 uppercase">Update Progress:</p>
+                            <div class="flex gap-2">
+                                <select id="status-${report.timestamp}" class="flex-1 p-2 border border-gray-300 rounded text-sm text-gray-700 font-medium focus:outline-none">
+                                    <option value="Reported" ${currentStatus==='Reported'?'selected':''}>1. Reported</option>
+                                    <option value="Verified" ${currentStatus==='Verified'?'selected':''}>2. Verified</option>
+                                    <option value="Assigned" ${currentStatus==='Assigned'?'selected':''}>3. Assigned</option>
+                                    <option value="Resolved" ${currentStatus==='Resolved'?'selected':''}>4. Resolved</option>
+                                </select>
+                                <input type="date" id="date-${report.timestamp}" value="${currentDate}" class="flex-1 p-2 border border-gray-300 rounded text-sm text-gray-500 focus:outline-none">
+                            </div>
+                            <button onclick="updateReportStatus('${report.timestamp}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition">
+                                <i class="fa-solid fa-arrows-rotate mr-1"></i> Update Status
+                            </button>
+                        </div>
+
+                        <div class="flex space-x-2">
+                            <a href="https://www.google.com/maps?q=${report.latitude},${report.longitude}" target="_blank" class="flex-1 bg-green-50 text-green-700 border border-green-200 font-bold py-2 rounded-lg hover:bg-green-100 transition text-sm flex items-center justify-center">
+                                <i class="fa-solid fa-map mr-2"></i> Map
+                            </a>
+                            <button onclick="deleteReport('${report.timestamp}')" class="flex-1 bg-red-50 text-red-600 border border-red-200 font-bold py-2 rounded-lg hover:bg-red-100 transition text-sm flex items-center justify-center">
+                                <i class="fa-solid fa-trash mr-2"></i> Delete DB
+                            </button>
+                        </div>
+                    `;
+                    dashboard.appendChild(card);
+                });
+            } catch (error) { console.log("Waiting for server..."); }
+        }
+
+        async function updateReportStatus(timestamp) {
+            const newStatus = document.getElementById(`status-${timestamp}`).value;
+            const newDate = document.getElementById(`date-${timestamp}`).value;
+            
+            try {
+                const response = await fetch(`https://sidsidhu818.pythonanywhere.com/api/reports/${timestamp}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus, assignedDate: newDate })
+                });
+                if(response.ok) {
+                    alert("Status successfully updated for the citizen.");
+                    fetchReports(); 
+                }
+            } catch (error) { alert('Error updating report status.'); }
+        }
+
+        async function deleteReport(timestamp) {
+            if(!confirm("Permanently wipe this record from the database?")) return;
+            try {
+                const response = await fetch(`https://sidsidhu818.pythonanywhere.com/api/reports/${timestamp}`, { method: 'DELETE' });
+                if(response.ok) fetchReports(); 
+            } catch (error) { alert('Error deleting report.'); }
+        }
+
+        async function fetchCitizenReports() {
+            if(!currentActiveUser) return;
+            try {
+                const response = await fetch('https://sidsidhu818.pythonanywhere.com/api/reports');
+                const reports = await response.json();
+                
+                const userReports = reports.filter(r => r.reporterId === currentActiveUser.mobile).reverse();
+                const container = document.getElementById('timeline-container');
+                container.innerHTML = '';
+
+                if(userReports.length === 0) {
+                    container.innerHTML = `<div class="text-center text-gray-500 mt-10"><i class="fa-solid fa-clipboard-check text-4xl mb-3 text-gray-300"></i><p>No active reports. Your city is clear!</p></div>`;
+                    return;
+                }
+
+                userReports.forEach(report => {
+                    const loc = resolveReportLocation(report);
+                    const cat = report.category || "Report";
+                    const dateStr = new Date(report.timestamp).toLocaleString();
+                    const status = report.status || "Reported";
+                    const assignedDate = report.assignedDate || "";
+                    
+                    let progressWidth = '25%';
+                    let s1 = 'bg-[#164e63] text-white', s2 = 'bg-gray-200 text-gray-400', s3 = 'bg-gray-200 text-gray-400', s4 = 'bg-gray-200 text-gray-400';
+                    let badgeColor = 'bg-[#164e63]';
+
+                    if (status === 'Verified' || status === 'Assigned' || status === 'Resolved') { progressWidth = '50%'; s2 = 'bg-[#164e63] text-white'; }
+                    if (status === 'Assigned' || status === 'Resolved') { progressWidth = '75%'; s3 = 'bg-[#164e63] text-white'; }
+                    if (status === 'Resolved') { progressWidth = '100%'; s4 = 'bg-[#164e63] text-white'; badgeColor = 'bg-green-600'; }
+
+                    const dateHtml = assignedDate && (status === 'Assigned' || status === 'Resolved') ? 
+                        `<div class="mt-2 text-xs font-bold text-blue-700 bg-blue-50 inline-block px-2 py-1 rounded"><i class="fa-regular fa-calendar-check mr-1"></i> Crew Scheduled: ${assignedDate}</div>` : '';
+                    
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-5 rounded-2xl shadow-sm border border-gray-100 w-full";
+                    item.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-lg">${cat}</h3>
+                                <p class="text-xs text-gray-500"><i class="fa-solid fa-clock mr-1"></i>${dateStr} &bull; <i class="fa-solid fa-location-dot text-blue-600 ml-1"></i> ${loc.city}, ${loc.state}</p>
+                            </div>
+                            <span class="${badgeColor} text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">${status}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2 truncate italic">"${report.description || 'Geotagged photo submitted.'}"</p>
+                        ${dateHtml}
+                        
+                        <div class="mt-5 pt-4 border-t border-gray-100">
+                            <div class="flex items-center justify-between relative mb-2">
+                                <div class="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-gray-200 z-0 rounded"></div>
+                                <div class="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-[#164e63] z-0 rounded transition-all duration-1000" style="width: ${progressWidth};"></div>
+                                
+                                <div class="relative z-10 w-8 h-8 rounded-full ${s1} flex items-center justify-center text-xs shadow-md"><i class="fa-solid fa-camera"></i></div>
+                                <div class="relative z-10 w-8 h-8 rounded-full ${s2} flex items-center justify-center text-xs shadow-md transition-colors"><i class="fa-solid fa-eye"></i></div>
+                                <div class="relative z-10 w-8 h-8 rounded-full ${s3} flex items-center justify-center text-xs shadow-md transition-colors"><i class="fa-solid fa-user-tie"></i></div>
+                                <div class="relative z-10 w-8 h-8 rounded-full ${s4} flex items-center justify-center text-xs shadow-md transition-colors"><i class="fa-solid fa-check"></i></div>
+                            </div>
+                            <div class="flex justify-between text-[10px] font-bold text-gray-500 px-1">
+                                <span class="${status === 'Reported' ? 'text-[#164e63]' : ''}">Reported</span>
+                                <span class="${status === 'Verified' ? 'text-[#164e63]' : ''}">Verified</span>
+                                <span class="${status === 'Assigned' ? 'text-[#164e63]' : ''}">Assigned</span>
+                                <span class="${status === 'Resolved' ? 'text-green-600' : ''}">Resolved</span>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                document.getElementById('timeline-container').innerHTML = '<p class="text-red-500 text-sm">Failed to load reports.</p>';
+            }
+        }
+
+        async function fetchCommunityReports() {
+            try {
+                const response = await fetch('https://sidsidhu818.pythonanywhere.com/api/reports');
+                const reports = await response.json();
+                
+                const container = document.getElementById('community-container');
+                container.innerHTML = '';
+
+                if(reports.length === 0) {
+                    container.innerHTML = `<div class="text-center text-gray-500 mt-10"><i class="fa-solid fa-city text-4xl mb-3 text-gray-300"></i><p>No issues reported in your city yet.</p></div>`;
+                    return;
+                }
+
+                reports.reverse().forEach((report) => {
+                    const loc = resolveReportLocation(report);
+                    const cat = report.category || "Report";
+                    const dateStr = new Date(report.timestamp).toLocaleDateString();
+                    const status = report.status || "Reported";
+                    const reportUpvotes = report.upvotes !== undefined ? report.upvotes : 0;
+                    
+                    let statusColor = "bg-blue-50 text-blue-700 border-blue-100";
+                    let statusIcon = "fa-clock";
+                    if (status === 'Resolved') { statusColor = "bg-green-50 text-green-700 border-green-100"; statusIcon = "fa-check"; }
+                    if (status === 'Assigned') { statusColor = "bg-yellow-50 text-yellow-700 border-yellow-100"; statusIcon = "fa-truck"; }
+
+                    const item = document.createElement('div');
+                    item.className = "bg-white p-5 rounded-2xl shadow-sm border border-gray-100 w-full flex items-start gap-4";
+                    item.innerHTML = `
+                        <div class="flex flex-col items-center justify-start min-w-[3rem]">
+                            <button onclick="handleUpvote(this, '${report.timestamp}')" class="w-12 h-12 rounded-full bg-gray-50 border border-gray-200 text-gray-500 hover:bg-purple-50 hover:text-purple-600 hover:border-purple-300 flex items-center justify-center transition-all active:scale-95 shadow-sm">
+                                <i class="fa-solid fa-arrow-up text-xl"></i>
+                            </button>
+                            <span class="font-bold text-gray-700 mt-2 text-sm upvote-count">${reportUpvotes}</span>
+                        </div>
+                        
+                        <div class="flex-1">
+                            <div class="flex justify-between items-start mb-1">
+                                <div>
+                                    <h3 class="font-bold text-gray-800 text-md">${cat}</h3>
+                                    <span class="text-[11px] font-bold text-blue-600"><i class="fa-solid fa-location-dot mr-1"></i>${loc.city}, ${loc.state}</span>
+                                </div>
+                                <span class="text-[10px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded"><i class="fa-solid fa-calendar-day mr-1"></i>${dateStr}</span>
+                            </div>
+                            
+                            <div class="h-24 w-full bg-gray-100 rounded-lg overflow-hidden my-3 border border-gray-200">
+                                <img src="${report.photo}" class="w-full h-full object-cover" alt="Hazard Photo" onerror="this.style.display='none'">
+                            </div>
+
+                            <p class="text-sm text-gray-600 mb-3 italic">"${report.description || 'Hazard reported by citizen.'}"</p>
+                            
+                            <div class="inline-block ${statusColor} text-[10px] font-bold px-2 py-1 rounded border">
+                                <i class="fa-solid ${statusIcon} mr-1"></i> ${status}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                document.getElementById('community-container').innerHTML = '<p class="text-red-500 text-sm">Failed to load community feed.</p>';
+            }
+        }
+
+        async function handleUpvote(btn, timestamp) {
+            const countSpan = btn.nextElementSibling;
+            let currentCount = parseInt(countSpan.innerText);
+            let newCount = currentCount + 1;
+            
+            countSpan.innerText = newCount;
+            btn.classList.add('pop-animation');
+            btn.classList.remove('bg-gray-50', 'text-gray-500', 'border-gray-200', 'hover:bg-purple-50');
+            btn.classList.add('bg-purple-600', 'text-white', 'border-purple-600');
+            btn.disabled = true; 
+            
+            setTimeout(() => { btn.classList.remove('pop-animation'); }, 300);
+
+            try {
+                await fetch(`https://sidsidhu818.pythonanywhere.com/api/reports/${timestamp}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ upvotes: newCount })
+                });
+            } catch(e) {
+                console.log("Network error saving upvote.");
+            }
+        }
+    </script>
+</body>
+</html>
