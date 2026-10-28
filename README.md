@@ -66,25 +66,6 @@ Instead of relying on closed-source, proprietary black-box APIs, CivicPulse is b
 * **Database:** Lightweight JSON Flat-File Telemetry Stores (`database.json`, `users.json`, `campaign.json`) for rapid zero-latency reads/writes.
 * **Hosting:** Netlify (Frontend CDN) & PythonAnywhere (WSGI Python Backend).
 
----
-
-## Judge Evaluation & Testing Guide
-
-1. **Test the Citizen Flow:**
-   * Open [https://genzhackers.netlify.app](https://genzhackers.netlify.app).
-   * Click **EN/HI** in the top-right corner to test instant English/Hindi localization.
-   * Click **New Registration** to create a citizen account, then log in via **Citizen Login**.
-   * Click **Report Hazard**, snap a photo, select or verify your **State & City** (e.g., *Maharashtra* $\rightarrow$ *Mumbai*), and click **Submit to City DB**.
-   * Check **Community Board** to upvote issues, or click the floating **Gov-Bot** icon in the bottom-right corner to ask about helplines or Karma points.
-2. **Test the Admin Command Center & India Map:**
-   * From the home screen, click **Admin Dispatch Portal** and enter PIN: `9675059250`.
-   * Review the live **Dispatch Queue** and scoreboard metrics.
-   * Click the **India Map** tab at the top of the Admin Panel.
-   * Click on any state (e.g., **Maharashtra** or **Delhi**) on the map or in the **States of India** list to watch the map zoom into that state's cities and display city-wise problem counts.
-   * Click **Run Open-Weight Triage Skill** to generate an AI dispatch plan for the selected region.
-
----
-
 ## Local Installation & Setup
 
 To run CivicPulse locally on your machine:
